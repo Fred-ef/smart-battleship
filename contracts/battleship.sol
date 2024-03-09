@@ -40,6 +40,8 @@ contract Battleship {
         uint256 amount;
         uint256 hostAmount;
         uint256 guestAmount;
+        bool hostPaid;
+        bool guestPaid;
     }
 
     // struct containing information about the players' moves
@@ -63,7 +65,7 @@ contract Battleship {
     uint listLen;  // keeps track of how many games are currently in the list
 
     // enum representing the different possible game states
-    enum GameState{UNINITIALIZED, CREATED, BETTING, PLACEMENT, STARTED, FINISHED}
+    enum GameState{UNINITIALIZED, CREATED, BETTING, PAYMENT, PLACEMENT, STARTED, FINISHED}
 
     // struct abstracting the information of a game of battleship
     struct GameInfo {
@@ -82,8 +84,10 @@ contract Battleship {
 
     event GameJoined(uint indexed gameId, address host, address guest); // notifies the host that a guest has joined the game
     event BetPlaced(uint indexed gameId, address better, uint256 amount, bool amountSet);   // notifies the players that someone placed a bet on the game
-    event GameStarted(uint indexed gameId, address host, address guest, bytes32 hostRoot, bytes32 guestRoot); // notifies the players that the game has started
-    event MovePlayed(uint indexed gameId, address player, uint8[2] move);   // notifies the other player that a move has been played
+    event WagerPaid(uint indexed gameId);   // notifies the players that the game is accepting wager payment
+    event GameStarted(uint indexed gameId); // notifies the players that the game has started
+    event MovePlayed(uint indexed gameId, address player, uint8 move);   // notifies the other player that a move has been played
+    event GameOver(uint indexed gameId, address winner, string reason);    // notifies the players that the game is over
 
 
 
@@ -136,7 +140,7 @@ contract Battleship {
                 totalHp,
                 shipInfo
             ),
-            BetInfo(0, 0, 0),
+            BetInfo(0, 0, 0, false, false),
             MoveInfo(true, 0, 0, hostMoves, guestMoves, 0, 0)
         );
 
@@ -152,21 +156,22 @@ contract Battleship {
         head = info.gameId;  // updating the list's head
         
         listLen++;  // updating the number of games currently in the list
-        // EMIT game created event
     }
 
     // allows the guest player to join the game
-    function joinGame(uint8 gameId) public {
+    function joinGame(uint gameId) public {
         require(gamesMap[gameId].info.gameState == GameState.CREATED, "G00");  // only games in the "CREATED" state can be joined
         require(msg.sender != gamesMap[gameId].info.host, "G01");   // Host cannot join his own game
         require(gamesMap[gameId].info.guest == address(0), "G02");  // No one should've already joined the game
 
         gamesMap[gameId].info.guest = msg.sender;   // setting the guest player
-        gamesMap[gameId].info.gameState = GameState.BETTING;    // updating the game to the betting phase 
+        gamesMap[gameId].info.gameState = GameState.BETTING;    // updating the game to the betting phase
+
+        emit GameJoined(gameId, gamesMap[gameId].info.host, msg.sender);    // logging the event
     }
 
     // allows the players to place their bets
-    function placeBet(uint8 gameId, uint256 amount) public {
+    function placeBet(uint gameId, uint256 amount) public {
         require(gamesMap[gameId].info.gameState == GameState.BETTING, "G03");  // only games in the "BETTING" state can receive bets
         require(isPlayer(gameId) == true, "G04");    // the tx sender is not a player
         require(amount > 0, "G05"); // bet cannot be 0
@@ -179,15 +184,35 @@ contract Battleship {
 
         if(gamesMap[gameId].info.betInfo.hostAmount == gamesMap[gameId].info.betInfo.guestAmount) {
             // if the players have agreed on a bet, proceed to the placement phase
-            gamesMap[gameId].info.gameState = GameState.PLACEMENT;
+            gamesMap[gameId].info.betInfo.amount = amount;
+            gamesMap[gameId].info.gameState = GameState.PAYMENT;
             amountSet = true;
         }
 
-        // EMIT bet placed event (hostamount, guestamount, amountSet)
+        emit BetPlaced(gameId, msg.sender, amount, amountSet);  // logging the event
+    }
+
+    // allows the players to pay the wager to the contract
+    function payWager(uint gameId) public payable {
+        require(gamesMap[gameId].info.gameState == GameState.PAYMENT, "G14");  // only games in the "PAYMENT" state can receive payments
+        require(isPlayer(gameId) == true, "G04");    // the tx sender is not a player
+        require(msg.value == gamesMap[gameId].info.betInfo.amount, "P00");  // wrong amount of wei
+        require((msg.sender == gamesMap[gameId].info.host && !gamesMap[gameId].info.betInfo.hostPaid) ||
+                (msg.sender == gamesMap[gameId].info.guest && !gamesMap[gameId].info.betInfo.guestPaid),
+                "P01");     // player has already paid
+
+        if(msg.sender == gamesMap[gameId].info.host) gamesMap[gameId].info.betInfo.hostPaid = true; // payment is from the host
+        else gamesMap[gameId].info.betInfo.guestPaid = true;
+
+        if(gamesMap[gameId].info.betInfo.hostPaid && gamesMap[gameId].info.betInfo.guestPaid) { // if both players have paid...
+            gamesMap[gameId].info.gameState = GameState.PLACEMENT;  // proceed to the placement phase
+            
+            emit WagerPaid(gameId); // logging the event
+        }
     }
 
     // allows the players to submit the merkle root of their boards
-    function submitBoard(uint8 gameId, bytes32 merkleRoot) public {
+    function submitBoard(uint gameId, bytes32 merkleRoot) public {
         require(gamesMap[gameId].info.gameState == GameState.PLACEMENT, "G07"); // game has to be in "PLACEMENT" state
         require(isPlayer(gameId), "G04");   // the tx sender is not a player
 
@@ -202,12 +227,13 @@ contract Battleship {
 
         if(gamesMap[gameId].info.boardInfo.hostRoot != "" && gamesMap[gameId].info.boardInfo.guestRoot != "") {
             gamesMap[gameId].info.gameState = GameState.STARTED;
-            // emit event game created gameId
+            
+            emit GameStarted(gameId);   // logging the event
         }
     }
 
     // allows the player to register the outcome of the opponent's shot and make a new move
-    function checkAndMove(uint8 gameId, bool hit, bytes32 salt, bytes32[] calldata proof, uint8 move) public {
+    function checkAndMove(uint gameId, bool hit, bytes32 salt, bytes32[] calldata proof, uint8 move) public {
         require(gamesMap[gameId].info.gameState == GameState.STARTED, "G09");  // game has to be started in order to play
         require(isPlayer(gameId), "G04");   // the tx sender is not a player
         require(
@@ -219,18 +245,12 @@ contract Battleship {
         require((gamesMap[gameId].info.moveInfo.hostMoveHistory.length == 0 && 
                 gamesMap[gameId].info.moveInfo.guestMoveHistory.length == 0) ||
                 (checkShot(gameId, hit, salt, proof)), "G13");  // the proof is not valid
-        
-        if(hit) {   // the last shot hit
-            if(msg.sender == gamesMap[gameId].info.host) gamesMap[gameId].info.boardInfo.hostHp--;
-            else gamesMap[gameId].info.boardInfo.guestHp--;
-        }
 
-        // playing the move
-        playMove(gameId, move);
+        playMove(gameId, move); // playing the move
     }
 
     // allows the player to register the outcome of the opponent's shot
-    function checkShot(uint8 gameId, bool hit, bytes32 salt, bytes32[] calldata proof) internal view returns(bool) {
+    function checkShot(uint gameId, bool hit, bytes32 salt, bytes32[] calldata proof) internal returns(bool) {
 
         uint8 lastMove;
         bytes32 root;      // will contain the actual root memorized into the contract
@@ -247,12 +267,29 @@ contract Battleship {
         // getting the leaf (hit cell) hash
         bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(lastMove,hit,salt))));
 
+        // validating the proof
+        bool proofResult = MerkleProof.verify(proof, root, leaf);
+
+        if(proofResult && hit) {    // computing the hit
+            if(msg.sender == gamesMap[gameId].info.host) gamesMap[gameId].info.boardInfo.hostHp--;
+            else gamesMap[gameId].info.boardInfo.guestHp--;
+
+            // check if game has ended with the last shot
+            if(gamesMap[gameId].info.boardInfo.hostHp == 0 || gamesMap[gameId].info.boardInfo.guestHp == 0) {
+                address winner;
+                if(gamesMap[gameId].info.boardInfo.hostHp == 0) winner = gamesMap[gameId].info.guest;
+                else winner = gamesMap[gameId].info.host;
+
+                emit GameOver(gameId, winner, "Victory");
+            }
+        }
+
         // returning the proof result
-        return (MerkleProof.verify(proof, root, leaf));
+        return proofResult;
     }
 
     // allows the player to register a new move in their turn
-    function playMove(uint8 gameId, uint8 move) internal {
+    function playMove(uint gameId, uint8 move) internal {
         require((move < gamesMap[gameId].info.boardInfo.boardSize),
                 "G11"); // invalid board index
 
@@ -269,7 +306,7 @@ contract Battleship {
 
         gamesMap[gameId].info.moveInfo.isHostTurn = !(gamesMap[gameId].info.moveInfo.isHostTurn);   // changing turn
 
-        // emit move event
+        emit MovePlayed(gameId, msg.sender, move);  // logging the event
     }
 
     // returns the list of all ongoing games
@@ -287,7 +324,7 @@ contract Battleship {
     }
 
     // AUXILIARY FUNCTIONS ##########
-    function isPlayer(uint8 gameId) internal view returns(bool) {
+    function isPlayer(uint gameId) internal view returns(bool) {
         require(gamesMap[gameId].info.gameState != GameState.UNINITIALIZED &&
                 gamesMap[gameId].info.gameState != GameState.FINISHED, "G04");  // game already finished
         
