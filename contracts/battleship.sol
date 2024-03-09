@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+
 contract Battleship {
 
     // ########## DATA ##########
 
     uint private constant SHIP_TYPES = 5;
     uint256 private constant MAX_BET_AMOUNT = 100000000000000000000;
+    uint8 public constant MIN_BOARD_DIM = 16;
+    uint8 public constant MAX_BOARD_DIM = 64;
 
     // keeps track of the total number of games created to serve as unique ID
     uint gamesCreated;
@@ -41,10 +45,10 @@ contract Battleship {
     // struct containing information about the players' moves
     struct MoveInfo {
         bool isHostTurn;
-        uint8[2] hostLastMove;
-        uint8[2] guestLastMove;
-        uint8[][] hostMoveHistory;
-        uint8[][] guestMoveHistory;
+        uint8 hostLastMove;
+        uint8 guestLastMove;
+        uint8[] hostMoveHistory;
+        uint8[] guestMoveHistory;
         uint hostLastMoveTime;
         uint guestLastMoveTime;
     }
@@ -94,8 +98,8 @@ contract Battleship {
 
     // allows the host to register a new game of battleship
     function createGame(uint8 boardSize, uint8[5] calldata shipsNum) public {
-        require(boardSize >= 4, "B00");  // board dim too small
-        require(boardSize <= 8, "B01");  // board dim too big
+        require(boardSize >= MIN_BOARD_DIM, "B00");  // board dim too small
+        require(boardSize <= MAX_BOARD_DIM, "B01");  // board dim too big
 
         uint8 totalHp = 0;   // total number of "ship pieces"
 
@@ -106,15 +110,15 @@ contract Battleship {
 
         require(totalHp > 0, "B03");    // number of "ship pieces" has to be > 0
 
-        require(totalHp <= (boardSize*boardSize)/2, "BO4");  // too many "ship pieces" for the board dimension
+        require(totalHp <= boardSize/2, "BO4");  // too many "ship pieces" for the board dimension
 
         // building the struct containing information on the ships
         ShipInfo memory shipInfo = ShipInfo(shipsNum[0], shipsNum[1], shipsNum [2], shipsNum[3], shipsNum[4]);
 
         uint id = ++gamesCreated; // getting the game id and updating the number of games created until now
 
-        uint8[][] memory hostMoves;    // will contain all moves of the host player
-        uint8[][] memory guestMoves;   // will contain all moves of the guest player
+        uint8[] memory hostMoves;    // will contain all moves of the host player
+        uint8[] memory guestMoves;   // will contain all moves of the guest player
 
 
         // building the struct containing information on the game
@@ -133,7 +137,7 @@ contract Battleship {
                 shipInfo
             ),
             BetInfo(0, 0, 0),
-            MoveInfo(true, [0,0], [0,0], hostMoves, guestMoves, 0, 0)
+            MoveInfo(true, 0, 0, hostMoves, guestMoves, 0, 0)
         );
 
         // adding the newly created game to the game list and mapping
@@ -171,7 +175,7 @@ contract Battleship {
 
         bool amountSet = false; // set to true when the players have agreed on the amount
         if(msg.sender == gamesMap[gameId].info.host) gamesMap[gameId].info.betInfo.hostAmount = amount;
-        else if (msg.sender == gamesMap[gameId].info.guest) gamesMap[gameId].info.betInfo.guestAmount = amount;
+        else gamesMap[gameId].info.betInfo.guestAmount = amount;
 
         if(gamesMap[gameId].info.betInfo.hostAmount == gamesMap[gameId].info.betInfo.guestAmount) {
             // if the players have agreed on a bet, proceed to the placement phase
@@ -191,7 +195,7 @@ contract Battleship {
             require(gamesMap[gameId].info.boardInfo.hostRoot == "", "G08");   // the root can only be submitted once
             gamesMap[gameId].info.boardInfo.hostRoot = merkleRoot;    // updating the host's merkle root
         }
-        else if(msg.sender == gamesMap[gameId].info.guest) {
+        else {
             require(gamesMap[gameId].info.boardInfo.guestRoot == "", "G08");   // the root can only be submitted once
             gamesMap[gameId].info.boardInfo.guestRoot = merkleRoot;   // updating the guest's merkle root
         }
@@ -202,8 +206,8 @@ contract Battleship {
         }
     }
 
-    // allows the players to register a new move in their turn
-    function playMove(uint8 gameId, uint8[2] calldata move) public {
+    // allows the player to register the outcome of the opponent's shot and make a new move
+    function checkAndMove(uint8 gameId, bool hit, bytes32 salt, bytes32[] calldata proof, uint8 move) public {
         require(gamesMap[gameId].info.gameState == GameState.STARTED, "G09");  // game has to be started in order to play
         require(isPlayer(gameId), "G04");   // the tx sender is not a player
         require(
@@ -211,19 +215,55 @@ contract Battleship {
             (!gamesMap[gameId].info.moveInfo.isHostTurn && msg.sender == gamesMap[gameId].info.guest),
             "G10"   // not the player's turn
         );
-        require((move[0] <= gamesMap[gameId].info.boardInfo.boardSize) &&
-                (move[1] <= gamesMap[gameId].info.boardInfo.boardSize), "G11"); // invalid board index
+        // checking the result of the last opponent's move (if any has been made)
+        require((gamesMap[gameId].info.moveInfo.hostMoveHistory.length == 0 && 
+                gamesMap[gameId].info.moveInfo.guestMoveHistory.length == 0) ||
+                (checkShot(gameId, hit, salt, proof)), "G13");  // the proof is not valid
+        
+        if(hit) {   // the last shot hit
+            if(msg.sender == gamesMap[gameId].info.host) gamesMap[gameId].info.boardInfo.hostHp--;
+            else gamesMap[gameId].info.boardInfo.guestHp--;
+        }
+
+        // playing the move
+        playMove(gameId, move);
+    }
+
+    // allows the player to register the outcome of the opponent's shot
+    function checkShot(uint8 gameId, bool hit, bytes32 salt, bytes32[] calldata proof) internal view returns(bool) {
+
+        uint8 lastMove;
+        bytes32 root;      // will contain the actual root memorized into the contract
+
+        if(msg.sender == gamesMap[gameId].info.host) {  // host is playing
+            lastMove = gamesMap[gameId].info.moveInfo.guestLastMove; // getting the guest's last move
+            root = gamesMap[gameId].info.boardInfo.hostRoot;  // getting the submitted host root
+        }
+        else  {     // guest is playing
+            lastMove = gamesMap[gameId].info.moveInfo.hostLastMove;    // getting the host's last move
+            root = gamesMap[gameId].info.boardInfo.guestRoot;  // getting the submitted guest root
+        }
+
+        // getting the leaf (hit cell) hash
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(lastMove,hit,salt))));
+
+        // returning the proof result
+        return (MerkleProof.verify(proof, root, leaf));
+    }
+
+    // allows the player to register a new move in their turn
+    function playMove(uint8 gameId, uint8 move) internal {
+        require((move < gamesMap[gameId].info.boardInfo.boardSize),
+                "G11"); // invalid board index
 
         if(msg.sender == gamesMap[gameId].info.host) {
             require(!isMovePlayed(gamesMap[gameId].info.moveInfo.hostMoveHistory, move), "G12");     // this move has already been played
-            gamesMap[gameId].info.moveInfo.hostLastMove[0] = move[0];
-            gamesMap[gameId].info.moveInfo.hostLastMove[1] = move[1];
+            gamesMap[gameId].info.moveInfo.hostLastMove = move;
             gamesMap[gameId].info.moveInfo.hostMoveHistory.push(move);  // adding move to the played moves
         }
-        else if(msg.sender == gamesMap[gameId].info.guest) {
+        else {
             require(!isMovePlayed(gamesMap[gameId].info.moveInfo.guestMoveHistory, move), "G12");     // this move has already been played
-            gamesMap[gameId].info.moveInfo.guestLastMove[0] = move[0];
-            gamesMap[gameId].info.moveInfo.guestLastMove[1] = move[1];
+            gamesMap[gameId].info.moveInfo.guestLastMove = move;
             gamesMap[gameId].info.moveInfo.guestMoveHistory.push(move);  // adding move to the played moves
         }
 
@@ -255,9 +295,9 @@ contract Battleship {
         else return false;
     }
 
-    function isMovePlayed(uint8[][] memory moves, uint8[2] memory move) internal pure returns(bool) {
+    function isMovePlayed(uint8[] memory moves, uint8 move) internal pure returns(bool) {
         for(uint8 i=0; i < moves.length; i++) {
-            if((move[0] == moves[i][0]) && (move[1] == moves[i][1])) return true;
+            if(moves[i] == move) return true;
         }
 
         return false;
