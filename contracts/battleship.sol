@@ -51,8 +51,6 @@ contract Battleship {
         uint8 guestLastMove;
         uint8[] hostMoveHistory;
         uint8[] guestMoveHistory;
-        uint hostLastMoveTime;
-        uint guestLastMoveTime;
         uint hostLastPingTime;
         uint guestLastPingTime;
     }
@@ -147,7 +145,7 @@ contract Battleship {
                 shipInfo
             ),
             BetInfo(0, 0, 0, false, false),
-            MoveInfo(true, 0, 0, hostMoves, guestMoves, 0, 0, 0, 0)
+            MoveInfo(true, 0, 0, hostMoves, guestMoves, 0, 0)
         );
 
         // adding the newly created game to the game list and mapping
@@ -244,11 +242,7 @@ contract Battleship {
     function checkAndMove(uint gameId, bool hit, bytes32 salt, bytes32[] calldata proof, uint8 move) public {
         require(gamesMap[gameId].info.gameState == GameState.STARTED, "G09");  // game has to be started in order to play
         require(isPlayer(gameId), "G04");   // the tx sender is not a player
-        require(
-            (gamesMap[gameId].info.moveInfo.isHostTurn && msg.sender == gamesMap[gameId].info.host) ||
-            (!gamesMap[gameId].info.moveInfo.isHostTurn && msg.sender == gamesMap[gameId].info.guest),
-            "G10"   // not the player's turn
-        );
+        require(isPlayerTurn(gameId), "G10");   // not the player's turn
         // checking the result of the last opponent's move (if any has been made)
         require((gamesMap[gameId].info.moveInfo.hostMoveHistory.length == 0 && 
                 gamesMap[gameId].info.moveInfo.guestMoveHistory.length == 0) ||
@@ -306,11 +300,13 @@ contract Battleship {
         if(msg.sender == gamesMap[gameId].info.host) {
             require(!isMovePlayed(gamesMap[gameId].info.moveInfo.hostMoveHistory, move), "G12");     // this move has already been played
             gamesMap[gameId].info.moveInfo.hostLastMove = move;
+            gamesMap[gameId].info.moveInfo.guestLastPingTime = 0;   // canceling the opponent ping
             gamesMap[gameId].info.moveInfo.hostMoveHistory.push(move);  // adding move to the played moves
         }
         else {
             require(!isMovePlayed(gamesMap[gameId].info.moveInfo.guestMoveHistory, move), "G12");     // this move has already been played
             gamesMap[gameId].info.moveInfo.guestLastMove = move;
+            gamesMap[gameId].info.moveInfo.hostLastPingTime = 0;   // canceling the opponent's ping
             gamesMap[gameId].info.moveInfo.guestMoveHistory.push(move);  // adding move to the played moves
         }
 
@@ -335,8 +331,6 @@ contract Battleship {
         uint8 boardLen = sqrt(gamesMap[gameId].info.boardInfo.boardSize);
         uint8 i;    // index
         uint8 j;    // index
-
-        // 1,[[],[[0,1],[1,1]],[],[],[]],[]
 
         // validating the positioning of each of the ships
         for(i=0; i<ships.length; i++) {   // iterating on ship-type
@@ -386,6 +380,31 @@ contract Battleship {
         emit RewardPaid(gameId, gamesMap[gameId].info.winner);  // logging the event
     }
 
+    // pings the opponent to test if he's left the game
+    function pingOpponent(uint gameId) public {
+        require(gamesMap[gameId].info.gameState == GameState.STARTED, "G09");    // game has to be started in order to ping
+        require(isPlayer(gameId), "G04");   // the tx sender is not a player
+        require(!isPlayerTurn(gameId), "G18");  // can only ping in the opponent's turn
+
+        uint lastPing;
+        // getting last ping time
+        if(msg.sender == gamesMap[gameId].info.host) lastPing = gamesMap[gameId].info.moveInfo.hostLastPingTime;
+        else lastPing = gamesMap[gameId].info.moveInfo.guestLastPingTime;
+        
+        if(lastPing != 0) {
+            if(block.number > (lastPing+5)) {
+                gamesMap[gameId].info.winner = msg.sender;  // setting the winner address
+                gamesMap[gameId].info.gameState = GameState.VALIDATION; // moves the game to the board validation phase
+                emit GameOver(gameId, msg.sender, "W1");   // logging the event (You won)
+            }
+            
+        }
+        else {
+            if(msg.sender == gamesMap[gameId].info.host) gamesMap[gameId].info.moveInfo.hostLastPingTime = block.number;
+            else gamesMap[gameId].info.moveInfo.guestLastPingTime = block.number;
+        }
+    }
+
     // returns the list of all open games
     function getGameList() public view returns (GameInfo[] memory) {
         GameInfo[] memory currGames = new GameInfo[](listLen);
@@ -424,12 +443,22 @@ contract Battleship {
     }
 
     // AUXILIARY FUNCTIONS ##########
+
+    // checks if the tx sender is a player of the game
     function isPlayer(uint gameId) internal view returns(bool) {
         require(gamesMap[gameId].info.gameState != GameState.UNINITIALIZED &&
                 gamesMap[gameId].info.gameState != GameState.FINISHED, "G16");  // game is not active
         
         if(msg.sender == gamesMap[gameId].info.host || msg.sender == gamesMap[gameId].info.guest) return true;
         else return false;
+    }
+
+    // checks if it's the players turn
+    function isPlayerTurn(uint gameId) internal view returns(bool) {
+        return (
+            (gamesMap[gameId].info.moveInfo.isHostTurn && msg.sender == gamesMap[gameId].info.host) ||
+            (!gamesMap[gameId].info.moveInfo.isHostTurn && msg.sender == gamesMap[gameId].info.guest)
+        );
     }
 
     function isMovePlayed(uint8[] memory moves, uint8 move) internal pure returns(bool) {
