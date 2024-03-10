@@ -345,12 +345,14 @@ contract Battleship {
         
         uint8[] memory board = new uint8[](gamesMap[gameId].info.boardInfo.boardSize);
         uint8 boardLen = sqrt(gamesMap[gameId].info.boardInfo.boardSize);
+        uint8 i;    // index
+        uint8 j;    // index
 
         // 1,[[],[[0,1],[1,1]],[],[],[]],[]
 
         // validating the positioning of each of the ships
-        for(uint8 i=0; i<ships.length; i++) {   // iterating on ship-type
-            for(uint8 j=0; j<ships[i].length; j++) {    // iterating on ships
+        for(i=0; i<ships.length; i++) {   // iterating on ship-type
+            for(j=0; j<ships[i].length; j++) {    // iterating on ships
                 if(!uint8ToBool(ships[i][j][1])) {   // placed horizontally
                     // checking that all ship pieces are on the same row
                     require(((ships[i][j][0] % boardLen) + i) < boardLen, "V02");    // ship positioning is invalid
@@ -369,18 +371,28 @@ contract Battleship {
             }
         }
 
-        uint8 l=0;
         bytes32 leaf;
         bytes32 root;
+        j=0;
         // getting the root of the winner
         if(gamesMap[gameId].info.winner == gamesMap[gameId].info.host) root = gamesMap[gameId].info.boardInfo.hostRoot;
         else root = gamesMap[gameId].info.boardInfo.guestRoot;
-        for(uint8 i=0; i<board.length; i++) {  // checking the validity of the proofs
+        for(i=0; i<board.length; i++) {  // checking the validity of the proofs
             if(board[i] == 1) { // ship piece in this cell: need to check its proof
-                leaf = keccak256(bytes.concat(keccak256(abi.encode(i,true,salts[l]))));
-                require(MerkleProof.verify(proofs[l++], root, leaf));
+                leaf = keccak256(bytes.concat(keccak256(abi.encode(i,true,salts[j]))));
+                require(MerkleProof.verify(proofs[j++], root, leaf));
             }
         }
+
+        processPayment(gameId);   // process payment to the winner
+    }
+
+    // emits payment to the game winner
+    function processPayment(uint gameId) internal {
+        require(msg.sender == gamesMap[gameId].info.winner, "G17");   // the tx sender is not the winner
+        uint totalAmount = gamesMap[gameId].info.betInfo.hostAmount + gamesMap[gameId].info.betInfo.guestAmount;    // getting total
+        (bool success, ) = payable(msg.sender).call{value: totalAmount}("");    // emitting the payment
+        require(success, "V06");    // couldn't make payment; retry
 
         gamesMap[gameId].info.gameState = GameState.FINISHED;   // setting game state to FINISHED
         emit RewardPaid(gameId, gamesMap[gameId].info.winner);  // logging the event
