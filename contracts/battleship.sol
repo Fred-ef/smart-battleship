@@ -170,6 +170,8 @@ contract Battleship {
         require(msg.sender != gamesMap[gameId].info.host, "G01");   // Host cannot join his own game
         require(gamesMap[gameId].info.guest == address(0), "G02");  // No one should've already joined the game
 
+        removeGame(gameId); // removing the game from the open games list
+
         gamesMap[gameId].info.guest = msg.sender;   // setting the guest player
         gamesMap[gameId].info.gameState = GameState.BETTING;    // updating the game to the betting phase
 
@@ -317,20 +319,6 @@ contract Battleship {
         emit MovePlayed(gameId, msg.sender, move);  // logging the event
     }
 
-    // returns the list of all ongoing games
-    function getAllGames() public view returns (GameInfo[] memory) {
-        GameInfo[] memory currGames = new GameInfo[](listLen);
-        uint pointer = head;    // "pointer" to the first game of the list
-        uint8 i = 0;    // counter
-
-        while(pointer != 0) {   // iterates until the end of the games list
-            currGames[i++] = gamesMap[pointer].info;
-            pointer = gamesMap[pointer].next;
-        }
-
-        return currGames;
-    }
-
     // lets the winner to validate his board before paying him
     function validateBoard(uint gameId, uint8[][][] calldata ships, bytes32[] calldata salts, bytes32[][] calldata proofs) public {
         require(gamesMap[gameId].info.gameState == GameState.VALIDATION, "G15");    // game has to be in VALIDATION state to validate
@@ -396,6 +384,43 @@ contract Battleship {
 
         gamesMap[gameId].info.gameState = GameState.FINISHED;   // setting game state to FINISHED
         emit RewardPaid(gameId, gamesMap[gameId].info.winner);  // logging the event
+    }
+
+    // returns the list of all open games
+    function getGameList() public view returns (GameInfo[] memory) {
+        GameInfo[] memory currGames = new GameInfo[](listLen);
+        uint pointer = head;    // "pointer" to the first game of the list
+        uint8 i = 0;    // counter
+
+        while(pointer != 0) {   // iterates until the end of the games list
+            currGames[i++] = gamesMap[pointer].info;
+            pointer = gamesMap[pointer].next;
+        }
+
+        return currGames;
+    }
+
+    // removes the game from the open games list
+    function removeGame(uint gameId) internal {
+        // game has been joined; it must be removed from the available games list
+        if(head != 0) { // game list is not empty - SHOULD NEVER BE (this game should be inside it)
+            if(head == gameId) {    // this game is the first element of the lists
+                head = gamesMap[gameId].next;   // link previous elem with next elem
+                listLen--;
+                return;
+            }
+            else {  // this game is a generic element of the list; iterate until it's found
+                uint pointer = head;    // "pointer" to the first game of the list
+                while(gamesMap[pointer].next != 0) {   // iterates until the end of the games list
+                    if(gamesMap[gamesMap[pointer].next].info.gameId == gameId) {
+                        gamesMap[pointer].next = gamesMap[gamesMap[pointer].next].next; // link previous elem with next elem
+                        listLen--;
+                        return;
+                    }
+                    pointer = gamesMap[pointer].next;
+                }
+            }
+        }
     }
 
     // AUXILIARY FUNCTIONS ##########
