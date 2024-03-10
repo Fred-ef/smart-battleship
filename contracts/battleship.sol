@@ -53,6 +53,8 @@ contract Battleship {
         uint8[] guestMoveHistory;
         uint hostLastMoveTime;
         uint guestLastMoveTime;
+        uint hostLastPingTime;
+        uint guestLastPingTime;
     }
 
     // ADT for the game linked-list
@@ -61,11 +63,11 @@ contract Battleship {
         uint next;
     }
     mapping(uint => Game) public gamesMap;  // enables the linking of games
-    uint public head;    // head of the linked list containing games
+    uint private head;    // head of the linked list containing games
     uint listLen;  // keeps track of how many games are currently in the list
 
     // enum representing the different possible game states
-    enum GameState{UNINITIALIZED, CREATED, BETTING, PAYMENT, PLACEMENT, STARTED, FINISHED}
+    enum GameState{UNINITIALIZED, CREATED, BETTING, PAYMENT, PLACEMENT, STARTED, VALIDATION, FINISHED}
 
     // struct abstracting the information of a game of battleship
     struct GameInfo {
@@ -73,6 +75,7 @@ contract Battleship {
         GameState gameState;
         address host;
         address guest;
+        address winner;
         BoardInfo boardInfo;
         BetInfo betInfo;
         MoveInfo moveInfo;
@@ -88,6 +91,7 @@ contract Battleship {
     event GameStarted(uint indexed gameId); // notifies the players that the game has started
     event MovePlayed(uint indexed gameId, address player, uint8 move);   // notifies the other player that a move has been played
     event GameOver(uint indexed gameId, address winner, string reason);    // notifies the players that the game is over
+    event RewardPaid(uint indexed gameId, address winner);  // notifies the winner that the payment has been emitted
 
 
 
@@ -104,6 +108,7 @@ contract Battleship {
     function createGame(uint8 boardSize, uint8[5] calldata shipsNum) public {
         require(boardSize >= MIN_BOARD_DIM, "B00");  // board dim too small
         require(boardSize <= MAX_BOARD_DIM, "B01");  // board dim too big
+        require((sqrt(boardSize)*sqrt(boardSize)) == boardSize, "B02"); // board size has to be a perfect sqaure
 
         uint8 totalHp = 0;   // total number of "ship pieces"
 
@@ -112,9 +117,9 @@ contract Battleship {
             totalHp = totalHp + shipsNum[i]*(i+1);
         }
 
-        require(totalHp > 0, "B03");    // number of "ship pieces" has to be > 0
+        require(totalHp > 0, "B04");    // number of "ship pieces" has to be > 0
 
-        require(totalHp <= boardSize/2, "BO4");  // too many "ship pieces" for the board dimension
+        require(totalHp <= boardSize/2, "BO5");  // too many "ship pieces" for the board dimension
 
         // building the struct containing information on the ships
         ShipInfo memory shipInfo = ShipInfo(shipsNum[0], shipsNum[1], shipsNum [2], shipsNum[3], shipsNum[4]);
@@ -131,6 +136,7 @@ contract Battleship {
             GameState.CREATED,
             msg.sender,
             address(0),
+            address(0),
             BoardInfo(
                 boardSize,
                 "",
@@ -141,7 +147,7 @@ contract Battleship {
                 shipInfo
             ),
             BetInfo(0, 0, 0, false, false),
-            MoveInfo(true, 0, 0, hostMoves, guestMoves, 0, 0)
+            MoveInfo(true, 0, 0, hostMoves, guestMoves, 0, 0, 0, 0)
         );
 
         // adding the newly created game to the game list and mapping
@@ -280,7 +286,9 @@ contract Battleship {
                 if(gamesMap[gameId].info.boardInfo.hostHp == 0) winner = gamesMap[gameId].info.guest;
                 else winner = gamesMap[gameId].info.host;
 
-                emit GameOver(gameId, winner, "Victory");
+                gamesMap[gameId].info.winner = winner;  // setting the winner address
+                gamesMap[gameId].info.gameState = GameState.VALIDATION; // moves the game to the board validation phase
+                emit GameOver(gameId, winner, "W0");   // logging the event (You won)
             }
         }
 
@@ -323,10 +331,65 @@ contract Battleship {
         return currGames;
     }
 
+    // lets the winner to validate his board before paying him
+    function validateBoard(uint gameId, uint8[][][] calldata ships, bytes32[] calldata salts, bytes32[][] calldata proofs) public {
+        require(gamesMap[gameId].info.gameState == GameState.VALIDATION, "G15");    // game has to be in VALIDATION state to validate
+        require(msg.sender == gamesMap[gameId].info.winner, "G17");   // the tx sender is not the winner
+        require(ships.length == SHIP_TYPES, "V00"); // invalid ship types
+        require(gamesMap[gameId].info.boardInfo.shipInfo.oneNum == ships[0].length &&
+                gamesMap[gameId].info.boardInfo.shipInfo.twoNum == ships[1].length &&
+                gamesMap[gameId].info.boardInfo.shipInfo.threeNum == ships[2].length &&
+                gamesMap[gameId].info.boardInfo.shipInfo.fourNum == ships[3].length &&
+                gamesMap[gameId].info.boardInfo.shipInfo.fiveNum == ships[4].length,
+                "V01"); // number of ships is invalid
+        
+        uint8[] memory board = new uint8[](gamesMap[gameId].info.boardInfo.boardSize);
+        uint8 boardLen = sqrt(gamesMap[gameId].info.boardInfo.boardSize);
+
+        // 1,[[],[[0,1],[1,1]],[],[],[]],[]
+
+        // validating the positioning of each of the ships
+        for(uint8 i=0; i<ships.length; i++) {   // iterating on ship-type
+            for(uint8 j=0; j<ships[i].length; j++) {    // iterating on ships
+                if(!uint8ToBool(ships[i][j][1])) {   // placed horizontally
+                    // checking that all ship pieces are on the same row
+                    require(((ships[i][j][0] % boardLen) + i) < boardLen, "V02");    // ship positioning is invalid
+                    for(uint8 k=ships[i][j][0]; k<(ships[i][j][0]+(i+1)); k++) {    // populating the board
+                        require(board[k] != 1, "V04");  // pieces intersecting (horizontally)
+                        board[k] = 1;
+                    }
+                }
+                else {  // placed vertically
+                    require((ships[i][j][0] + i*boardLen) < gamesMap[gameId].info.boardInfo.boardSize, "V03");   // ship positioning is invalid
+                    for(uint8 k=ships[i][j][0]; k<(ships[i][j][0] + (i+1)*boardLen); k+=boardLen) {    // populating the board
+                        require(board[k] != 1, "V05");  // pieces intersecting (vertically)
+                        board[k] = 1;
+                    }
+                }
+            }
+        }
+
+        uint8 l=0;
+        bytes32 leaf;
+        bytes32 root;
+        // getting the root of the winner
+        if(gamesMap[gameId].info.winner == gamesMap[gameId].info.host) root = gamesMap[gameId].info.boardInfo.hostRoot;
+        else root = gamesMap[gameId].info.boardInfo.guestRoot;
+        for(uint8 i=0; i<board.length; i++) {  // checking the validity of the proofs
+            if(board[i] == 1) { // ship piece in this cell: need to check its proof
+                leaf = keccak256(bytes.concat(keccak256(abi.encode(i,true,salts[l]))));
+                require(MerkleProof.verify(proofs[l++], root, leaf));
+            }
+        }
+
+        gamesMap[gameId].info.gameState = GameState.FINISHED;   // setting game state to FINISHED
+        emit RewardPaid(gameId, gamesMap[gameId].info.winner);  // logging the event
+    }
+
     // AUXILIARY FUNCTIONS ##########
     function isPlayer(uint gameId) internal view returns(bool) {
         require(gamesMap[gameId].info.gameState != GameState.UNINITIALIZED &&
-                gamesMap[gameId].info.gameState != GameState.FINISHED, "G04");  // game already finished
+                gamesMap[gameId].info.gameState != GameState.FINISHED, "G16");  // game is not active
         
         if(msg.sender == gamesMap[gameId].info.host || msg.sender == gamesMap[gameId].info.guest) return true;
         else return false;
@@ -338,5 +401,19 @@ contract Battleship {
         }
 
         return false;
+    }
+    
+    function sqrt(uint8 x) internal pure returns (uint8 y) {
+        uint8 z = (x + 1) / 2;
+        y = x;
+        while (z < y) {
+            y = z;
+            z = (x / z + z) / 2;
+        }
+    }
+
+    function uint8ToBool(uint8 x) internal pure returns(bool b) {
+        if(x == 0) return false;
+        else return true;
     }
 }
