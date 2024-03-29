@@ -55,18 +55,6 @@ contract Battleship {
         uint guestLastPingTime;
     }
 
-    // ADT for the game linked-list
-    struct Game {
-        GameInfo info;
-        uint next;
-    }
-    mapping(uint => Game) public gamesMap;  // enables the linking of games
-    uint private head;    // head of the linked list containing games
-    uint listLen;  // keeps track of how many games are currently in the list
-
-    // enum representing the different possible game states
-    enum GameState{UNINITIALIZED, CREATED, BETTING, PAYMENT, PLACEMENT, STARTED, VALIDATION, FINISHED}
-
     // struct abstracting the information of a game of battleship
     struct GameInfo {
         uint gameId;
@@ -78,6 +66,18 @@ contract Battleship {
         BetInfo betInfo;
         MoveInfo moveInfo;
     }
+
+    // ADT for the game linked-list
+    struct Game {
+        GameInfo info;
+        uint next;
+    }
+    mapping(uint => Game) public gamesMap;  // enables the linking of games
+    uint private head;    // head of the linked list containing games
+    uint listLen;  // keeps track of how many games are currently in the list
+
+    // enum representing the different possible game states
+    enum GameState{UNINITIALIZED, CREATED, BETTING, PAYMENT, PLACEMENT, STARTED, VALIDATION, FINISHED}
 
 
 
