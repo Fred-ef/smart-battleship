@@ -1,88 +1,104 @@
 .tableFrame {
-    background-color: #252525;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
+  background-color: #252525;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
 
-    border: 1px solid rgba(255, 255, 255, 0.185);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 1em;
+}
+
+.game-creation-frame {
+  text-align: left;
+
+  padding: 0.5em;
+  padding-left: 2em;
+
+  width: 100%;
+}
+
+table {
+  width: 100%;
+
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  border-collapse: collapse;
+}
+
+table th,
+table td {
+  padding: 10px;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+table tbody tr:hover {
+  background-color: #ffffff0f;
+}
+
+
+// #################### GAME CREATION
+#create-game-window {
+  background-color: #252525;
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+
+  height: 100%;
+  width: 100%;
+
+  border: 1px solid darkgrey;
+  border-radius: 2em;
+}
+
+.create-game-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+}
+
+.create-game-header > button {
+  border: none;
+}
+
+
+
+@media only screen and (max-width: 600px) {
+
+  .phoneHidden {
+    display: none;
   }
 
-  .game-creation-frame {
-    text-align: left;
+}
 
-    padding: 0.5em;
-    padding-left: 2em;
+@media only screen and (max-width: 768px) {
 
-    width: 100%;
-  }
-  
-  table {
-    width: 100%;
-  
-    border-left: 1px solid rgba(255, 255, 255, 0.185);
-    border-right: 1px solid rgba(255, 255, 255, 0.185);
-    border-collapse: collapse;
-  }
-  
-  table th,
   table td {
     padding: 10px;
     text-align: left;
-    border-top: 1px solid rgba(255, 255, 255, 0.185);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.185);
   }
-  
-  /* table thead th {
-    background-color: #f5f5f5;
+
+  .tabletHidden {
+    display: none;
   }
-  
-  table tbody tr:nth-child(even) {
-    background-color: #f9f9f9;
-  } */
-  
-  table tbody tr:hover {
-    background-color: #ffffff0f;
+
+}
+
+@media only screen and (min-width: 1024px) {
+
+  .tableFrame {
+    width: 30%;
+    max-height: 80%;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
-  
-  .coinLoadError {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+
+  #create-game-window {
+    max-height: 50%;
+    max-width: 50%;
   }
-  
-  
-  
-  @media only screen and (max-width: 600px) {
-  
-    .phoneHidden {
-      display: none;
-    }
-  
-  }
-  
-  @media only screen and (max-width: 768px) {
-  
-    table td {
-      padding: 10px;
-      text-align: left;
-    }
-  
-    .tabletHidden {
-      display: none;
-    }
-  
-  }
-  
-  @media only screen and (min-width: 1024px) {
-  
-    .tableFrame {
-      width: 30%;
-      max-height: 80%;
-      overflow-x: hidden;
-      overflow-y: auto;
-    }
-  
-  }
+
+}

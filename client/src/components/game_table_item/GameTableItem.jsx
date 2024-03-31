@@ -3,7 +3,7 @@ import './gameTableItem.scss';
 function GameTableItem({id, host, status, chooseGame}) {
 
     return(
-        <tr onClick={() => chooseGame(id)}>
+        <tr>
             <td>
                 <p>{id}</p>
             </td>
@@ -12,6 +12,9 @@ function GameTableItem({id, host, status, chooseGame}) {
             </td>
             <td>
                 <p>{status}</p>
+            </td>
+            <td>
+                <button onClick={() => chooseGame(id)} >Join Game</button>
             </td>
         </tr>
     )

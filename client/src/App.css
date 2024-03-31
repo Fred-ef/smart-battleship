@@ -19,8 +19,6 @@
   color: white;
 
   height: 3em;
-
-  border: 1px solid red;
 }
 
 button {
@@ -49,4 +47,14 @@ button:active {
 
 box-icon {
   margin-left: 0.5em;
+}
+
+.divisor {
+  width: 100%;
+
+  border: 1px solid rgb(119, 119, 119);
+}
+
+.error-text {
+  color: darkred;
 }
