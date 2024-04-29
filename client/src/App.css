@@ -21,6 +21,13 @@
   height: 3em;
 }
 
+form {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
 button {
   cursor: pointer;
 
@@ -45,16 +52,8 @@ button:active {
   background-color: rgba(0, 0, 0, 0.15);
 }
 
-box-icon {
-  margin-left: 0.5em;
-}
-
 .divisor {
   width: 100%;
 
   border: 1px solid rgb(119, 119, 119);
-}
-
-.error-text {
-  color: darkred;
 }

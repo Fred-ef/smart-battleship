@@ -9,7 +9,7 @@ function GameWindow() {
         <>
             <Routes>
                 <Route path='/' element={<GameSelection />} />
-                <Route path='/game' element={<Game />} />
+                <Route path='/game/:id' element={<Game />} />
             </Routes>
         </>
     )

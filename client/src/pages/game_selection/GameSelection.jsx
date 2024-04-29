@@ -10,7 +10,7 @@ function GameSelection() {
     useEffect(() => {
         async function prova() {
             if(contract) {
-                let res = await contract.getGameList();
+                const res = await contract.getGameList();
                 setGameList(res);
             }
         }

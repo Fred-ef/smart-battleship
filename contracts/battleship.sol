@@ -83,6 +83,7 @@ contract Battleship {
 
     // ########## EVENTS ##########
 
+    event GameCreated(uint indexed gameId, address host);   // notifies the host that the new game has been created
     event GameJoined(uint indexed gameId, address host, address guest); // notifies the host that a guest has joined the game
     event BetPlaced(uint indexed gameId, address better, uint256 amount, bool amountSet);   // notifies the players that someone placed a bet on the game
     event WagerPaid(uint indexed gameId);   // notifies the players that the game is accepting wager payment
@@ -150,6 +151,8 @@ contract Battleship {
 
         // adding the newly created game to the game list and mapping
         addGame(gameInfo);
+
+        emit GameCreated(id, msg.sender);   // emitting the game creation event
     }
 
     // adds a game to the games list and mapping

@@ -19,6 +19,12 @@
   width: 100%;
 }
 
+.game-creation-frame {
+  box-icon {
+    margin-left: 0.5em;
+  }
+}
+
 table {
   width: 100%;
 
@@ -61,7 +67,13 @@ table tbody tr:hover {
 }
 
 .create-game-header > button {
+  padding: 0 0.5em;
+  
   border: none;
+}
+
+.spacing {
+  padding: 0 1em;
 }
 
 
