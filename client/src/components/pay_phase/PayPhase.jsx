@@ -18,10 +18,12 @@ function PayPhase({id, amount, setStatus}) {
     }, [contract, id, setStatus]);
 
     const payWager = async (e) => {
+        setErr("");
         const options = {value: amount}
 
         try {
-            await contract.payWager(id, options);
+            const tx = await contract.payWager(id, options);
+            await tx.wait();
             setIsPaid(true);
         } catch(err) {
             if(err.reason) setErr(err.reason);

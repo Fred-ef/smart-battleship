@@ -10,14 +10,11 @@ function BetPhase({id, address, setStatus}) {
 
     useEffect(() => {
         contract.on("BetPlaced", (gameId, better, amount, amountSet) => {
-            console.log("Event fired");
             if(parseInt(gameId) === parseInt(id)) {
                 if(amountSet) {
-                    console.log("Done");
                     contract.on("BetPlaced", null);
                     setStatus(3);
                 } else if(better !== address) {
-                    console.log("Rilancio");
                     setErr("Opponent has bet "+parseInt(amount)+".\nMatch the bet or raise.");
                 }
             }
@@ -31,7 +28,8 @@ function BetPhase({id, address, setStatus}) {
         setErr("");
 
         try {
-            await contract.placeBet(id, betRef.current.value);
+            const tx = await contract.placeBet(id, betRef.current.value);
+            await tx.wait();
         } catch(err) {
             if(err.reason) setErr(err.reason);
             else setErr(err.message);

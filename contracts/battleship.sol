@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import "./MerkleProof.sol";
 
 contract Battleship {
 
@@ -88,7 +88,8 @@ contract Battleship {
     event BetPlaced(uint indexed gameId, address better, uint256 amount, bool amountSet);   // notifies the players that someone placed a bet on the game
     event WagerPaid(uint indexed gameId);   // notifies the players that the game is accepting wager payment
     event GameStarted(uint indexed gameId); // notifies the players that the game has started
-    event MovePlayed(uint indexed gameId, address player, uint8 move);   // notifies the other player that a move has been played
+    event MovePlayed(uint indexed gameId, address player, uint8 move, bool wasHit);   // notifies the other player that a move has been played
+    event PingSent(uint indexed gameId, address issuer);    // notifies the other player that he's being pinged for inactivity
     event GameOver(uint indexed gameId, address winner, string reason);    // notifies the players that the game is over
     event RewardPaid(uint indexed gameId, address winner);  // notifies the winner that the payment has been emitted
 
@@ -251,7 +252,7 @@ contract Battleship {
                 gamesMap[gameId].info.moveInfo.guestMoveHistory.length == 0) ||
                 (checkShot(gameId, hit, salt, proof)), "G13");  // the proof is not valid
 
-        playMove(gameId, move); // playing the move
+        playMove(gameId, move, hit); // playing the move
     }
 
     // allows the player to register the outcome of the opponent's shot
@@ -296,7 +297,7 @@ contract Battleship {
     }
 
     // allows the player to register a new move in their turn
-    function playMove(uint gameId, uint8 move) internal {
+    function playMove(uint gameId, uint8 move, bool wasHit) internal {
         require((move < gamesMap[gameId].info.boardInfo.boardSize),
                 "G11"); // invalid board index
 
@@ -315,7 +316,7 @@ contract Battleship {
 
         gamesMap[gameId].info.moveInfo.isHostTurn = !(gamesMap[gameId].info.moveInfo.isHostTurn);   // changing turn
 
-        emit MovePlayed(gameId, msg.sender, move);  // logging the event
+        emit MovePlayed(gameId, msg.sender, move, wasHit);  // logging the event
     }
 
     // lets the winner to validate his board before paying him
@@ -405,6 +406,7 @@ contract Battleship {
         else {
             if(msg.sender == gamesMap[gameId].info.host) gamesMap[gameId].info.moveInfo.hostLastPingTime = block.number;
             else gamesMap[gameId].info.moveInfo.guestLastPingTime = block.number;
+            emit PingSent(gameId, msg.sender);
         }
     }
 

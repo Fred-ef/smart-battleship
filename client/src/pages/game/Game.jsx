@@ -4,8 +4,9 @@ import { WalletContext } from "../../context/WalletContext";
 import BetPhase from "../../components/bet_phase/BetPhase";
 import PayPhase from "../../components/pay_phase/PayPhase";
 import PlacementPhase from "../../components/placement_phase/PlacementPhase";
+import PlayPhase from "../../components/play_phase/PlayPhase";
 
-const salts = Array.from({length: 64}, (_, i) => '0x'+window.crypto.randomUUID().replaceAll("-", "").toString('hex').repeat(2));
+let salts = Array.from({length: 64}, (_, i) => '0x'+window.crypto.randomUUID().replaceAll("-", "").toString('hex').repeat(2));
 
 function Game() {
 
@@ -15,6 +16,8 @@ function Game() {
     const [status, setStatus] = useState(0);
     const [isHost, setIsHost] = useState(false);
     const [isGuest, setIsGuest] = useState(false);
+    const [tree, setTree] = useState(null);
+    const [ships, setShips] = useState([]);
     const { address, contract } = useContext(WalletContext);
 
     // used to fetch game info on page load
@@ -61,7 +64,10 @@ function Game() {
 
 
     if(!isHost && !isGuest) return(
-        <div className="alert">You are not a player</div>
+        <>
+            {status === 0 && <div className="alert">Joining the game...</div>}
+            {status !== 0 && <div className="alert">You are not a player</div>}
+        </>
     )
 
     return (
@@ -69,7 +75,8 @@ function Game() {
         {(status === 1 && isHost) && <div className="alert"><p>Waiting for another player to join the game...</p></div>}
         {(status === 2) && <BetPhase id={id} address={address} setStatus={setStatus} />}
         {(status === 3) && <PayPhase id={id} amount={parseInt(game[6][0])} setStatus={setStatus} />}
-        {(status === 4) && <PlacementPhase id={id} setStatus={setStatus} boardInfo={game[5]} salts={salts} />}
+        {(status === 4) && <PlacementPhase id={id} setStatus={setStatus} boardInfo={game[5]} salts={salts} tree={tree} setTree={setTree} setShips={setShips} />}
+        {(status === 5) && <PlayPhase id={id} address={address} isHost={isHost} setStatus={setStatus} boardInfo={game[5]} salts={salts} tree={tree} ships={ships} />}
         {err}
         </>
     )

@@ -1,0 +1,26 @@
+#play-frame {
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    
+
+    .game-grid {
+        display: grid;
+        grid-gap: 0;
+
+        margin: 2em 0;
+
+        border: 1px solid black;
+    }
+
+    .cell {
+        height: 3em;
+        width: 3em;
+
+        border: 1px solid black;
+
+        aspect-ratio: 1/1;
+    }
+}

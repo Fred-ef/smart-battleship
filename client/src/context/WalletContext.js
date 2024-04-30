@@ -4,7 +4,7 @@ import { createContext } from "react";
 import { BrowserProvider, Contract } from "ethers";
 import abi from "../contract/abi";
 
-const contractAddress = '0x2fc8f615700601c7404bfbae9c15de154deb3b85';
+const contractAddress = '0x358999e7cadcc54b04f1a10e35f30aebb8196bd0';
 
 export const WalletContext = createContext();
 
@@ -36,5 +36,3 @@ export const WalletContextProvider = ({children}) => {
         <WalletContext.Provider value={{provider, signer, address, contract}}>{children}</WalletContext.Provider>
     )
 }
-
-// 0x2fc8f615700601c7404bfbae9c15de154deb3b85
