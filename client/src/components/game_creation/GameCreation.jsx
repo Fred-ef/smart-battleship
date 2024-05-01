@@ -1,10 +1,9 @@
-import { useContext, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import { WalletContext } from '../../context/WalletContext';
 import './gameCreation.scss';
 import { useNavigate } from 'react-router-dom';
 
 function GameCreation() {
-    // min 4x4, max 8x8
     const dimRef = useRef();
     const oneShipRef = useRef();
     const twoShipRef = useRef();
@@ -12,7 +11,17 @@ function GameCreation() {
     const fourShipRef = useRef();
     const [errMessage, setErrMessage] = useState("");
     const { address, contract } = useContext(WalletContext);
+    const [size, setSize] = useState(0);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        contract.on("GameCreated", (gameId, host) => {
+            if(host == address) {
+                contract.on("GameCreated", null);
+                navigate("/game/"+parseInt(gameId));
+            }
+        });
+    }, []);
 
     const createGame = async (e) => {
         e.preventDefault();
@@ -24,32 +33,23 @@ function GameCreation() {
         }
         const boardSize = dimRef.current.value*dimRef.current.value;
         if(!boardSize || boardSize < 16 || boardSize > 64) {
-            console.log(boardSize);
             setErrMessage("Board size must be at least 4x4 and at max 8x8");
             return;
         }
         
         try {
-            const result = await contract.createGame(boardSize, [
+            const tx = await contract.createGame(boardSize, [
                 oneShipRef.current.value,
                 twoShipRef.current.value,
                 threeShipRef.current.value,
                 fourShipRef.current.value,
                 0
             ]);
+            await tx.wait();
 
-
-            contract.on("GameCreated", (gameId, host) => {
-                if(host == address) {
-                    contract.on("GameCreated", null);
-                    navigate("/game/"+parseInt(gameId));
-                }
-            });
-
-            // return <Navigate to="/game/1" />
         } catch(err) {
-            setErrMessage(err.reason);
-            return
+            if(err.reason) setErrMessage(err.reason);
+            else setErrMessage(err.message);
         }
     }
 
@@ -57,7 +57,7 @@ function GameCreation() {
         <form id='game-creation-form' onSubmit={createGame}>
             <div className="form-column-frame">
                 <label className="mini-text">Table size:</label>
-                <input className="text-box input-form" type="text" name="size" placeholder="4" ref={dimRef} />
+                <input id='size-input' className="text-box input-form" type="text" name="size" placeholder="4" ref={dimRef} onChange={e => setSize(e.target.value)} />x       {size}
             </div>
             <div className="form-column-frame">
                 <p className="mini-text">One-cell-ships number:</p>

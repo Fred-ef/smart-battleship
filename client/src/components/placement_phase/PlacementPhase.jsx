@@ -3,7 +3,7 @@ import './placementPhase.scss';
 import { WalletContext } from '../../context/WalletContext';
 const mt = require('@openzeppelin/merkle-tree');
 
-function PlacementPhase({id, setStatus, boardInfo, salts, tree, setTree, setShips}) {
+function PlacementPhase({id, setStatus, boardInfo, salts, tree, setTree, setPlacement}) {
 
     const boardSize = parseInt(boardInfo[0]);
     const columnsNumber = Math.sqrt(boardSize);
@@ -18,7 +18,7 @@ function PlacementPhase({id, setStatus, boardInfo, salts, tree, setTree, setShip
                 setStatus(5);
             }
         });
-    })
+    });
 
     const placeShip = (cellId) => {
         const newBoard = board.map((value, index) => {
@@ -32,23 +32,83 @@ function PlacementPhase({id, setStatus, boardInfo, salts, tree, setTree, setShip
     const submitBoard = async () => {
         setErr("");
 
-        const shipsArray = [];
-        board.forEach(el => {
-            if(el[1]) shipsArray.push(el[0]);
-        });
-
         const tree = mt.StandardMerkleTree.of(board, ["uint8", "bool", "bytes32"]);
+        checkShips();
 
         try {
             const tx = await contract.submitBoard(id, tree.root);
             await tx.wait();
             setTree(tree);
-            setShips(shipsArray);
         } catch(err) {
             if(err.reason) setErr(err.reason);
             else setErr(err.message);
         }
     }
+
+    const checkShips = () => {
+        const ships = [[],[],[],[],[]];
+        const rowNum = parseInt(Math.sqrt(parseInt(boardInfo[0])));
+        const columnNum = rowNum;
+        const shipInfo = boardInfo[6];
+        const boardMap = board.map((value, _) => {
+            return value[1];
+        });
+
+        // extracting ships from the board
+        for(let i=3; i >= 0; i--) { // repeat until all ship sizes have been evaluated
+            for(let j=0; j<shipInfo[i]; j++) {    // repeat untill all ships of size (i+1) have been evaluated
+                let isShip = false;
+
+                // horizontal check 
+                for(let k=0; k<rowNum; k++) {   // iterate until last row
+                    for(let l=(k*rowNum); l<(k*rowNum+columnNum-i); l++) {    // iterate untill right-limit
+                        
+                        isShip = true;
+                        for(let m=l; m<=(l+i); m++) {
+                            if(!boardMap[m]) {
+                                isShip = false;
+                                break;
+                            }
+                        }
+                        if(isShip) {
+                            ships[i][j] = [l, 1];
+                            for(let m=l; m<=(l+i); m++) boardMap[m] = false;
+                            break;
+                        }
+                    }
+                    if(isShip) break;
+                }
+
+                // vertical check
+                for(let k=0; k<(rowNum-i); k++) {   // iterate until last row
+                    if(isShip) break;
+                    for(let l=(k*rowNum); l<(k*rowNum+columnNum); l++) {    // iterate untill right-limit
+                        
+                        isShip = true;
+                        for(let m=l; m<=(l+i*columnNum); m+=columnNum) {
+                            if(!boardMap[m]) {
+                                isShip = false;
+                                break;
+                            }
+                        }
+                        if(isShip) {
+                            ships[i][j] = [l, 0];
+                            for(let m=l; m<=(l+i*columnNum); m+=columnNum) boardMap[m] = false;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        let filledCells = board.map((value, index) => {
+            if(value[1]) return index;
+        });
+        filledCells = filledCells.filter(value => value !== undefined);
+
+        setPlacement({ships: ships, filledCells: filledCells});
+    }
+
 
     return (
         <>
@@ -60,7 +120,7 @@ function PlacementPhase({id, setStatus, boardInfo, salts, tree, setTree, setShip
                 </p>
                 <div className="game-grid" style={{gridTemplateColumns: "1fr ".repeat(columnsNumber)}}>
                     {board.map((el, index) => (<div key={index} className='cell' style={{
-                        backgroundColor: board[index][1] ? 'black' : 'darkblue'
+                        backgroundColor: board[index][1] ? 'darkorange' : 'darkblue'
                     }} onClick={() => placeShip(index)}></div>))}
                 </div>
                 <button onClick={submitBoard}>Confirm</button>

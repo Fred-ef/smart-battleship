@@ -1,10 +1,12 @@
 .tableFrame {
   background-color: #252525;
+
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
+
   width: 100%;
+  height: 60%;
 
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 1em;
@@ -13,10 +15,18 @@
 .game-creation-frame {
   text-align: left;
 
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+
   padding: 0.5em;
   padding-left: 2em;
 
+  margin: 0.5em;
+
   width: 100%;
+  min-height: 1em;
 }
 
 .game-creation-frame {

@@ -22,9 +22,9 @@ const salts = [
 
 const values = [
     [0, true, salts[0]],
-    [1, true, salts[1]],
-    [2, true, salts[2]],
-    [3, true, salts[3]],
+    [1, false, salts[1]],
+    [2, false, salts[2]],
+    [3, false, salts[3]],
     [4, false, salts[4]],
     [5, false, salts[5]],
     [6, false, salts[6]],

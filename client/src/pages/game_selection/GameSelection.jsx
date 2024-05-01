@@ -18,12 +18,6 @@ function GameSelection() {
         prova();
     }, [contract]);
 
-    // useEffect(() => {
-    //     if(gameList) {
-    //         console.log(gameList.length);
-    //     }
-    // }, [gameList]);
-
     return (
         <GameTable gameList={gameList} />
     )

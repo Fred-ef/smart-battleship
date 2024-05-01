@@ -4,7 +4,7 @@ import { createContext } from "react";
 import { BrowserProvider, Contract } from "ethers";
 import abi from "../contract/abi";
 
-const contractAddress = '0x358999e7cadcc54b04f1a10e35f30aebb8196bd0';
+const contractAddress = '0x3dc925356ef71311dfa86d0af712b761941531fa';
 
 export const WalletContext = createContext();
 

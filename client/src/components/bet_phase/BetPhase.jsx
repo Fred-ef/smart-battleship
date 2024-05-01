@@ -6,6 +6,7 @@ function BetPhase({id, address, setStatus}) {
 
     const { contract } = useContext(WalletContext);
     const [err, setErr] = useState("");
+    const [alert, setAlert] = useState("");
     const betRef = useRef();
 
     useEffect(() => {
@@ -15,7 +16,7 @@ function BetPhase({id, address, setStatus}) {
                     contract.on("BetPlaced", null);
                     setStatus(3);
                 } else if(better !== address) {
-                    setErr("Opponent has bet "+parseInt(amount)+".\nMatch the bet or raise.");
+                    setAlert("Opponent has bet "+parseInt(amount)+".\nMatch the bet or raise.");
                 }
             }
         });
@@ -30,6 +31,7 @@ function BetPhase({id, address, setStatus}) {
         try {
             const tx = await contract.placeBet(id, betRef.current.value);
             await tx.wait();
+            setAlert("Your bet has been placed.");
         } catch(err) {
             if(err.reason) setErr(err.reason);
             else setErr(err.message);
@@ -44,6 +46,7 @@ function BetPhase({id, address, setStatus}) {
                 <input className="text-box input-form" type="text" name="amount" placeholder="0" ref={betRef} />
                 <button className="button form-button site-font" type="submit">Place</button>
                 <p className="error-text">{err}</p>
+                <p className="mini-text">{alert}</p>
             </form>
         </div>
     )

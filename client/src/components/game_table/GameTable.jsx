@@ -8,7 +8,7 @@ import './gameTable.scss';
 
 function GameTable({gameList}) {
     const { contract } = useContext(WalletContext);
-    const games = gameList ? gameList.map((game, index) => game) : null;
+    const games = gameList ? gameList.map((game, _) => game) : null;
     const navigate = useNavigate();
     const [error, setError] = useState("");
     const [modal, setModal] = useState(false);
@@ -43,26 +43,27 @@ function GameTable({gameList}) {
             }
             {(!modal) && 
                 <div className="tableFrame">
-                <div className='game-creation-frame'>
-                    <button onClick={() => toggleModal()}>Create game <box-icon type='solid' color='#FFF' name='plus-circle'></box-icon></button>
+                    <div className='game-creation-frame'>
+                        <button onClick={() => toggleModal()}>Create game <box-icon type='solid' color='#FFF' name='plus-circle'></box-icon></button>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Host</th>
+                                <th>Join</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {games && games.reverse().map((game, index) => <GameTableItem key={parseInt(game[0])} id={parseInt(game[0])} host={(game[2].substring(0,5)+"..."+game[2].substring((game[2].length-4),game[2].length))} chooseGame={chooseGame} />)}
+                        </tbody>
+                    </table>
+                    {(error.length > 0) && 
+                        <div className='table-error'>
+                            <p className='error-text'>{error}</p>
+                        </div>
+                    }
                 </div>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Host</th>
-                            <th>Join</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {games && games.reverse().map((game, index) => <GameTableItem key={parseInt(game[0])} id={parseInt(game[0])} host={(game[2].substring(0,5)+"..."+game[2].substring((game[2].length-4),game[2].length))} chooseGame={chooseGame} />)}
-                    </tbody>
-                </table>
-                {(error.length > 0) && 
-                    <div className='table-error'>
-                        <p className='error-text'>{error}</p>
-                    </div>}
-            </div>
             }
         </>
     )

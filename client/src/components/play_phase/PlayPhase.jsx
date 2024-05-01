@@ -11,7 +11,8 @@ const State = {
     hit: 3
 }
 
-function PlayPhase({id, address, isHost, setStatus, boardInfo, salts, tree, ships }) {
+function PlayPhase({id, address, isHost, setStatus, boardInfo, salts, tree, placement, setWinner }) {
+
 
     const boardSize = parseInt(boardInfo[0]);
     const columnsNumber = Math.sqrt(boardSize);
@@ -20,6 +21,7 @@ function PlayPhase({id, address, isHost, setStatus, boardInfo, salts, tree, ship
     const [opponentMove, setOpponentMove] = useState(-1);
     const [err, setErr] = useState("");
     const [alert, setAlert] = useState("");
+    const [lastMove, setLastMove] = useState(-1);
     const { contract } = useContext(WalletContext);
 
     useEffect(() => {
@@ -38,6 +40,7 @@ function PlayPhase({id, address, isHost, setStatus, boardInfo, salts, tree, ship
                 contract.on("MovePlayed", null);
                 contract.on("PingSent", null);
                 contract.on("GameOver", null);
+                setWinner(winner);
                 setStatus(6);
             }
         });
@@ -53,27 +56,23 @@ function PlayPhase({id, address, isHost, setStatus, boardInfo, salts, tree, ship
 
     const shoot = async (cellId) => {
         if(!isPlayerTurn || !tree) return;
+        if(board[cellId] !== State.whole) return;
         setAlert("");
         setErr("");
-        
-        let isLegal = false;
+
         const oldBoard = board;
         const newBoard = board.map((value, index) => {
-            if(index === cellId && value === State.whole) {
-                isLegal = true;
-                return State.selected;
-            }
+            if(index === cellId && value === State.whole) return State.selected;
             else return value;
         });
         setBoard(newBoard);
 
-        if(!isLegal) return;
-
         try {
             const proof = (opponentMove === -1) ? [] : tree.getProof(opponentMove);
             const salt = (opponentMove === -1) ? nullSalt : salts[opponentMove];
-            const tx = await contract.checkAndMove(id, ships.includes(opponentMove), salt, proof, cellId);
+            const tx = await contract.checkAndMove(id, placement.filledCells.includes(opponentMove), salt, proof, cellId);
             await tx.wait();
+            setLastMove(cellId);
             setIsPlayerTurn(false);
         } catch(err) {
             if(err.reason) setErr(err.reason);
@@ -83,21 +82,15 @@ function PlayPhase({id, address, isHost, setStatus, boardInfo, salts, tree, ship
     }
 
     const confirmShot = (hit) => {
-        console.log(hit);
-        const newBoard = board.map((value, index) => {
-            if(value === State.selected) {
-                if(hit) {
-                    console.log("Your shot hit");
-                    return State.hit;
-                }
-                else {
-                    console.log("Your shot missed");
-                    return State.missed;
-                }
-            }
-            else return value;
+        console.log(board);
+        setBoard(oldBoard => {
+            oldBoard.map((value, index) => {
+                if(index==lastMove) {
+                    if(hit) return State.hit;
+                    else return State.missed;
+                } else return value;
+            });
         });
-        setBoard(newBoard);
     }
 
     const pingOpponent = async () => {
@@ -111,6 +104,11 @@ function PlayPhase({id, address, isHost, setStatus, boardInfo, salts, tree, ship
             else setErr(err.message);
         }
     }
+
+    useEffect(() => {
+        console.log("Board updated:");
+        console.log(board);
+    }, [board]);
 
 
     return (
