@@ -82,10 +82,9 @@ function PlayPhase({id, address, isHost, setStatus, boardInfo, salts, tree, plac
     }
 
     const confirmShot = (hit) => {
-        console.log(board);
         setBoard(oldBoard => {
-            oldBoard.map((value, index) => {
-                if(index==lastMove) {
+            return oldBoard.map((value, index) => {
+                if(value === State.selected) {
                     if(hit) return State.hit;
                     else return State.missed;
                 } else return value;
@@ -104,11 +103,6 @@ function PlayPhase({id, address, isHost, setStatus, boardInfo, salts, tree, plac
             else setErr(err.message);
         }
     }
-
-    useEffect(() => {
-        console.log("Board updated:");
-        console.log(board);
-    }, [board]);
 
 
     return (
